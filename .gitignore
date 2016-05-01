@@ -2,3 +2,4 @@ webcam.ini
 webcam.log
 ipaddress
 .idea
+__pycache__
