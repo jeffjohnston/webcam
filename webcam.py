@@ -73,8 +73,17 @@ class Webcam:
             logger.error('problem updating no-ip address: %s' % request.text)
             return False
 
-    def take_snapshot(self):
+    def snapshot(self):
         camera = picamera.PiCamera()
+        sleep(5)
         camera.capture('/home/mnrabbit/image1.jpg')
         sleep(5)
         camera.capture('/home/mnrabbit/image2.jpg')
+
+    def video(self):
+        camera = picamera.PiCamera()
+        sleep(5)
+        camera.start_recording('/home/mnrabbit/video.h264')
+        sleep(5)
+        camera.stop_recording()
+
