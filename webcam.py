@@ -3,6 +3,8 @@ import logging
 import os
 import requests
 import smtplib
+import picamera
+from time import sleep
 from email.mime.text import MIMEText
 
 config = configparser.ConfigParser()
@@ -70,3 +72,9 @@ class Webcam:
         else:
             logger.error('problem updating no-ip address: %s' % request.text)
             return False
+
+    def take_snapshot(self):
+        camera = picamera.PiCamera()
+        camera.capture('/home/mnrabbit/image1.jpg')
+        sleep(5)
+        camera.capture('/home/mnrabbit/image2.jpg')
