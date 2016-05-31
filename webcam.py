@@ -6,6 +6,10 @@ import smtplib
 import picamera
 from time import sleep
 from email.mime.text import MIMEText
+import RPi.GPIO as GPIO
+import time
+import datetime as dt
+import subprocess
 
 config = configparser.ConfigParser()
 config.read('webcam.ini')
@@ -75,15 +79,59 @@ class Webcam:
 
     def snapshot(self):
         camera = picamera.PiCamera()
-        sleep(5)
-        camera.capture('/home/mnrabbit/image1.jpg')
-        sleep(5)
-        camera.capture('/home/mnrabbit/image2.jpg')
+        camera.resolution = (1024, 768)
+        camera.vflip = True
+        camera.exposure_mode = 'auto'
+        camera.metering = 'average'
+
+        timestamp = dt.datetime.now().strftime('%m-%d-%Y %H:%M:%S')
+        timestamp += " (" + self.get_temp() + ")"
+        camera.annotate_text = timestamp
+
+        sleep(3)
+        camera.capture('/var/www/html/camera.jpg')
+
+    def get_temp(self):
+        try:
+            output = subprocess.check_output(["/opt/vc/bin/vcgencmd", "measure_temp"])
+            text = output.decode('utf-8')
+            return text[5:-1]
+        except:
+            return ""
 
     def video(self):
         camera = picamera.PiCamera()
+        camera.resolution = (1024, 768)
+        camera.exposure_mode = 'sports'
+        camera.vflip = True
         sleep(5)
         camera.start_recording('/home/mnrabbit/video.h264')
-        sleep(5)
+        sleep(20)
         camera.stop_recording()
+
+    def motion(self):
+        camera = picamera.PiCamera()
+        camera.resolution = (1024, 768)
+        camera.exposure_mode = 'sports'
+        sleep(2)
+
+        sensor = 4
+        count = 0
+
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(sensor, GPIO.IN, GPIO.PUD_DOWN)
+
+        previous_state = False
+        current_state = False
+
+        while True:
+            time.sleep(0.1)
+            previous_state = current_state
+            current_state = GPIO.input(sensor)
+            if current_state != previous_state:
+                new_state = "HIGH" if current_state else "LOW"
+                print("GPIO pin %s is %s" % (sensor, new_state))
+                if (new_state == "HIGH"):
+                    count = count+1
+                    camera.capture('/home/mnrabbit/pics/jeff-%d.jpg' % count)
 
