@@ -89,8 +89,11 @@ class Webcam:
         camera.metering = 'average'
         sleep(3)
 
-        t = threading.Timer(60.0, self.pic, args=camera)
-        t.start()
+        snapshot = Snapshot(camera)
+        snapshot.start()
+
+        server_socket = ServerSocket(camera)
+        server_socket.start()
 
     def pic(self, camera):
         timestamp = dt.datetime.now().strftime('%m/%d %H:%M')
@@ -106,12 +109,12 @@ class Webcam:
         camera.vflip = True
         camera.exposure_mode = 'auto'
         camera.metering = 'average'
+        sleep(3)
 
         timestamp = dt.datetime.now().strftime('%m/%d %H:%M')
         timestamp += " (" + self.get_temp() + ")"
         camera.annotate_text = timestamp
 
-        sleep(3)
         camera.capture('/var/www/html/camera.jpg')
 
     def get_temp(self):
@@ -122,24 +125,27 @@ class Webcam:
         except:
             return ""
 
+    def stream(self):
+        camera = picamera.PiCamera()
+        camera.resolution = (1024, 768)
+        camera.exposure_mode = 'sports'
+        camera.vflip = True
+        camera.exposure_mode = 'auto'
+        camera.metering = 'average'
+        sleep(3)
+
+        server_socket = ServerSocket(camera)
+        server_socket.start()
+
     def video(self):
         camera = picamera.PiCamera()
         camera.resolution = (1024, 768)
         camera.exposure_mode = 'sports'
         camera.vflip = True
-        sleep(5)
+        sleep(3)
         camera.start_recording('/home/mnrabbit/video.h264')
         sleep(20)
         camera.stop_recording()
-
-    def stream(self):
-        camera = picamera.PiCamera()
-        camera.resolution = (1024, 768)
-        #camera.framerate = 24
-        camera.vflip = True
-
-        server_socket = ServerSocket(camera)
-        server_socket.start()
 
     def motion(self):
         sensor = 4
@@ -170,7 +176,38 @@ class Webcam:
                     camera.capture('/home/mnrabbit/pics/motion-%d.jpg' % count)
                     camera.close()
 
+class Snapshot(Thread):
+
+    def __init__(self, camera):
+        Thread.__init__(self)
+        self.camera = camera
+
+    def run(self):
+
+        while True:
+            timestamp = dt.datetime.now().strftime('%m/%d %H:%M')
+            timestamp += " (" + self.get_temp() + ")"
+            self.camera.annotate_text = timestamp
+
+            if (self.camera.recording):
+                logger.debug('take snapshot using video port')
+                self.camera.capture('/var/www/html/camera.jpg', use_video_port=True)
+            else:
+                logger.debug('take snapshot')
+                self.camera.capture('/var/www/html/camera.jpg')
+
+            sleep(10)
+
+    def get_temp(self):
+        try:
+            output = subprocess.check_output(["/opt/vc/bin/vcgencmd", "measure_temp"])
+            text = output.decode('utf-8')
+            return text[5:-1]
+        except:
+            return ""
+
 class ServerSocket(Thread):
+
     def __init__(self, camera):
         Thread.__init__(self)
         self.camera = camera
@@ -192,6 +229,7 @@ class ServerSocket(Thread):
             server_socket.close()
 
 class Stream(Thread):
+
     def __init__(self, camera, connection):
         Thread.__init__(self)
         self.camera = camera
