@@ -1,3 +1,4 @@
+import sys
 import configparser
 import logging
 import os
@@ -89,8 +90,8 @@ class Webcam:
         camera.metering = 'average'
         sleep(3)
 
-        snapshot = Snapshot(camera)
-        snapshot.start()
+        #snapshot = Snapshot(camera)
+        #snapshot.start()
 
         server_socket = ServerSocket(camera)
         server_socket.start()
@@ -221,7 +222,10 @@ class ServerSocket(Thread):
 
         try:
             while True:
+                logger.debug('waiting for connection')
                 connection = server_socket.accept()[0]
+
+                logger.debug('create stream')
                 stream = Stream(self.camera, connection)
                 stream.start()
         finally:
@@ -236,21 +240,21 @@ class Stream(Thread):
         self.connection = connection
 
     def run(self):
-        while True:
-            try:
-                logger.debug('start the stream')
+        logger.debug('start recording')
+        file = self.connection.makefile('wb')
+        self.camera.start_recording(file, format='h264')
 
-                file = self.connection.makefile('wb')
-                self.camera.start_recording(file, format='h264')
-                self.camera.wait_recording(60)
-
-                logger.debug('end the stream')
-            except (BrokenPipeError, IOError, ConnectionResetError):
-                logger.debug('error caught')
-            finally:
-                self.camera.stop_recording()
-                self.connection.close()
-                file.close()
+        try:
+            while True:
+                self.camera.wait_recording(0)
+        except (ConnectionResetError):
+            logger.warn('connection reset error')
+            self.camera.stop_recording()
+        except:
+            logger.error('unexpected error: ', sys.exc_info()[0])
+            self.camera.stop_recording()
+            self.connection.close()
+            file.close()
 
 
 
