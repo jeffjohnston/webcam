@@ -24,7 +24,8 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
+snapshot_interval = int(config['DEFAULT']['camera.snapshot.interval'])
 
 class Webcam:
 
@@ -81,7 +82,7 @@ class Webcam:
             logger.error('problem updating no-ip address: %s' % request.text)
             return False
 
-    def main(self):
+    def start_camera(self):
         camera = picamera.PiCamera()
         camera.resolution = (1024, 768)
         camera.exposure_mode = 'sports'
@@ -90,18 +91,11 @@ class Webcam:
         camera.metering = 'average'
         sleep(3)
 
-        #snapshot = Snapshot(camera)
-        #snapshot.start()
+        snapshot = Snapshot(camera)
+        snapshot.start()
 
         server_socket = ServerSocket(camera)
         server_socket.start()
-
-    def pic(self, camera):
-        timestamp = dt.datetime.now().strftime('%m/%d %H:%M')
-        timestamp += " (" + self.get_temp() + ")"
-        camera.annotate_text = timestamp
-
-        camera.capture('/var/www/html/camera.jpg')
 
     def snapshot(self):
         camera = picamera.PiCamera()
@@ -125,28 +119,6 @@ class Webcam:
             return text[5:-1]
         except:
             return ""
-
-    def stream(self):
-        camera = picamera.PiCamera()
-        camera.resolution = (1024, 768)
-        camera.exposure_mode = 'sports'
-        camera.vflip = True
-        camera.exposure_mode = 'auto'
-        camera.metering = 'average'
-        sleep(3)
-
-        server_socket = ServerSocket(camera)
-        server_socket.start()
-
-    def video(self):
-        camera = picamera.PiCamera()
-        camera.resolution = (1024, 768)
-        camera.exposure_mode = 'sports'
-        camera.vflip = True
-        sleep(3)
-        camera.start_recording('/home/mnrabbit/video.h264')
-        sleep(20)
-        camera.stop_recording()
 
     def motion(self):
         sensor = 4
@@ -190,14 +162,17 @@ class Snapshot(Thread):
             timestamp += " (" + self.get_temp() + ")"
             self.camera.annotate_text = timestamp
 
-            if (self.camera.recording):
-                logger.debug('take snapshot using video port')
-                self.camera.capture('/var/www/html/camera.jpg', use_video_port=True)
-            else:
-                logger.debug('take snapshot')
-                self.camera.capture('/var/www/html/camera.jpg')
+            try:
+                if (self.camera.recording):
+                    logger.debug('take snapshot using video port')
+                    self.camera.capture('/var/www/html/camera.jpg', use_video_port=True)
+                else:
+                    logger.debug('take snapshot')
+                    self.camera.capture('/var/www/html/camera.jpg')
+            except:
+                logger.error('unexpected snapshot error: ', sys.exc_info()[0])
 
-            sleep(10)
+            sleep(snapshot_interval)
 
     def get_temp(self):
         try:
@@ -214,7 +189,7 @@ class ServerSocket(Thread):
         self.camera = camera
 
     def run(self):
-        logger.debug('stream server is started')
+        logger.info('stream server is started')
 
         server_socket = socket.socket()
         server_socket.bind(('0.0.0.0', 8000))
@@ -229,7 +204,7 @@ class ServerSocket(Thread):
                 stream = Stream(self.camera, connection)
                 stream.start()
         finally:
-            logger.debug('stream server is stopped')
+            logger.info('stream server is stopped')
             server_socket.close()
 
 class Stream(Thread):
@@ -251,7 +226,7 @@ class Stream(Thread):
             logger.warn('connection reset error')
             self.camera.stop_recording()
         except:
-            logger.error('unexpected error: ', sys.exc_info()[0])
+            logger.error('unexpected streaming error: ', sys.exc_info()[0])
             self.camera.stop_recording()
             self.connection.close()
             file.close()

@@ -3,4 +3,4 @@
 import webcam
 
 webcam = webcam.Webcam()
-webcam.video()
+webcam.start_camera()
