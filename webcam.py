@@ -221,7 +221,7 @@ class Stream(Thread):
 
         try:
             while True:
-                self.camera.wait_recording(0)
+                self.camera.wait_recording(60)
         except (ConnectionResetError):
             logger.warn('connection reset error')
             self.camera.stop_recording()
