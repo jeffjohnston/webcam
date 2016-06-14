@@ -24,7 +24,7 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 snapshot_interval = int(config['DEFAULT']['camera.snapshot.interval'])
 
 class Webcam:
@@ -94,60 +94,11 @@ class Webcam:
         snapshot = Snapshot(camera)
         snapshot.start()
 
-        server_socket = ServerSocket(camera)
-        server_socket.start()
+        # motion = Motion(camera)
+        # motion.start()
 
-    def snapshot(self):
-        camera = picamera.PiCamera()
-        camera.resolution = (1024, 768)
-        camera.exposure_mode = 'sports'
-        camera.vflip = True
-        camera.exposure_mode = 'auto'
-        camera.metering = 'average'
-        sleep(3)
-
-        timestamp = dt.datetime.now().strftime('%m/%d %H:%M')
-        timestamp += " (" + self.get_temp() + ")"
-        camera.annotate_text = timestamp
-
-        camera.capture('/var/www/html/camera.jpg')
-
-    def get_temp(self):
-        try:
-            output = subprocess.check_output(["/opt/vc/bin/vcgencmd", "measure_temp"])
-            text = output.decode('utf-8')
-            return text[5:-1]
-        except:
-            return ""
-
-    def motion(self):
-        sensor = 4
-        count = 0
-
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(sensor, GPIO.IN, GPIO.PUD_DOWN)
-
-        previous_state = False
-        current_state = False
-
-        while True:
-            time.sleep(0.1)
-            previous_state = current_state
-            current_state = GPIO.input(sensor)
-            if current_state != previous_state:
-                new_state = "HIGH" if current_state else "LOW"
-                print("GPIO pin %s is %s" % (sensor, new_state))
-                if (new_state == "HIGH"):
-                    count = count+1
-                    camera = picamera.PiCamera()
-                    camera.resolution = (1024, 768)
-                    camera.exposure_mode = 'sports'
-                    camera.vflip = True
-                    camera.exposure_mode = 'auto'
-                    camera.metering = 'average'
-                    sleep(2)
-                    camera.capture('/home/mnrabbit/pics/motion-%d.jpg' % count)
-                    camera.close()
+        stream_server = StreamServer(camera)
+        stream_server.start()
 
 class Snapshot(Thread):
 
@@ -163,7 +114,7 @@ class Snapshot(Thread):
             self.camera.annotate_text = timestamp
 
             try:
-                if (self.camera.recording):
+                if self.camera.recording:
                     logger.debug('take snapshot using video port')
                     self.camera.capture('/var/www/html/camera.jpg', use_video_port=True)
                 else:
@@ -182,7 +133,57 @@ class Snapshot(Thread):
         except:
             return ""
 
-class ServerSocket(Thread):
+class Motion(Thread):
+
+    def __init__(self, camera):
+        Thread.__init__(self)
+        self.camera = camera
+
+    def run(self):
+
+        sensor = 4
+
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(sensor, GPIO.IN, GPIO.PUD_DOWN)
+
+        previous_state = False
+        current_state = False
+
+        while True:
+            time.sleep(0.1)
+            previous_state = current_state
+            current_state = GPIO.input(sensor)
+            if current_state != previous_state:
+                new_state = "HIGH" if current_state else "LOW"
+
+                logger.debug("GPIO pin %s is %s" % (sensor, new_state))
+
+                if new_state == "HIGH":
+                    timestamp = dt.datetime.now().strftime('%m/%d %H:%M')
+                    timestamp += " (" + self.get_temp() + ")"
+                    self.camera.annotate_text = timestamp
+
+                    timestamp = dt.datetime.now().strftime('%Y.%m.%d-%H:%M')
+
+                    try:
+                        if self.camera.recording:
+                            logger.debug('take motion picture using video port')
+                            self.camera.capture('/var/www/html/motion/camera-%s.jpg' % dt.datetime.now().strftime('%Y-%m-%d_%H:%M:%S'), use_video_port=True, resize=(320, 240))
+                        else:
+                            logger.debug('take motion picture')
+                            self.camera.capture('/var/www/html/motion/camera-%s.jpg' % dt.datetime.now().strftime('%Y-%m-%d_%H:%M:%S'), resize=(320, 240))
+                    except:
+                        logger.error('unexpected snapshot error: ', sys.exc_info()[0])
+
+    def get_temp(self):
+        try:
+            output = subprocess.check_output(["/opt/vc/bin/vcgencmd", "measure_temp"])
+            text = output.decode('utf-8')
+            return text[5:-1]
+        except:
+            return ""
+
+class StreamServer(Thread):
 
     def __init__(self, camera):
         Thread.__init__(self)
@@ -230,6 +231,3 @@ class Stream(Thread):
             self.camera.stop_recording()
             self.connection.close()
             file.close()
-
-
-
