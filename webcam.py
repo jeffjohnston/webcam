@@ -14,6 +14,7 @@ import subprocess
 import socket
 import threading
 from threading import Thread
+import shutil
 
 config = configparser.ConfigParser()
 config.read('webcam.ini')
@@ -117,6 +118,8 @@ class Snapshot(Thread):
                 else:
                     logger.debug('take snapshot')
                     self.camera.capture('/var/www/html/camera.jpg')
+
+                shutil.copy('/var/www/html/camera.jpg', '/var/www/html/timelapse/camera-%s.jpg' % dt.datetime.now().strftime('%Y-%m-%d_%H:%M:%S'))
             except:
                 logger.error('unexpected snapshot error: ', sys.exc_info()[0])
 
