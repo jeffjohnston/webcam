@@ -9,7 +9,7 @@ from time import sleep
 from email.mime.text import MIMEText
 import RPi.GPIO as GPIO
 import time
-import datetime as dt
+from datetime import datetime, time
 import subprocess
 import socket
 import threading
@@ -107,21 +107,24 @@ class Snapshot(Thread):
     def run(self):
 
         while True:
-            timestamp = dt.datetime.now().strftime('%m/%d %H:%M')
-            timestamp += " (" + self.get_temp() + ")"
-            self.camera.annotate_text = timestamp
+            now = datetime.now()
+            now_time = now.time()
+            if now_time <= time(21,30) or now_time >= time(6,00):
+                timestamp = now.strftime('%m/%d %H:%M:%S')
+                timestamp += " (" + self.get_temp() + ")"
+                self.camera.annotate_text = timestamp
 
-            try:
-                if self.camera.recording:
-                    logger.debug('take snapshot using video port')
-                    self.camera.capture('/var/www/html/camera.jpg', use_video_port=True)
-                else:
-                    logger.debug('take snapshot')
-                    self.camera.capture('/var/www/html/camera.jpg')
+                try:
+                    if self.camera.recording:
+                        logger.debug('take snapshot using video port')
+                        self.camera.capture('/var/www/html/camera.jpg', use_video_port=True)
+                    else:
+                        logger.debug('take snapshot')
+                        self.camera.capture('/var/www/html/camera.jpg')
 
-                shutil.copy('/var/www/html/camera.jpg', '/var/www/html/timelapse/camera-%s.jpg' % dt.datetime.now().strftime('%Y-%m-%d_%H:%M:%S'))
-            except:
-                logger.error('unexpected snapshot error: ', sys.exc_info()[0])
+                    shutil.copy('/var/www/html/camera.jpg', '/var/www/html/timelapse/camera-%s.jpg' % now.strftime('%Y-%m-%d_%H:%M:%S'))
+                except:
+                    logger.error('unexpected snapshot error: ', sys.exc_info()[0])
 
             sleep(snapshot_interval)
 
@@ -129,7 +132,7 @@ class Snapshot(Thread):
         try:
             output = subprocess.check_output(["/opt/vc/bin/vcgencmd", "measure_temp"])
             text = output.decode('utf-8')
-            return text[5:-1]
+            return text[5:-3]
         except:
             return ""
 
