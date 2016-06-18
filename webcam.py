@@ -109,7 +109,7 @@ class Snapshot(Thread):
         while True:
             now = datetime.now()
             now_time = now.time()
-            if now_time <= time(21,30) or now_time >= time(6,00):
+            if now_time >= time(6,00) and now_time <= time(21,30):
                 timestamp = now.strftime('%m/%d %H:%M:%S')
                 timestamp += " (" + self.get_temp() + ")"
                 self.camera.annotate_text = timestamp
